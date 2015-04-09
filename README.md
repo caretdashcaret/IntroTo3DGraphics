@@ -164,7 +164,7 @@
 
 # Intro to Blender API
 
-## Quickstart Blender API
+## Quickstart Blender API (Blender v2.74)
 
 ### Setup Environment
 * Start the Blender [Console Window](http://wiki.blender.org/index.php/Doc:2.6/Manual/Interface/Window_system/Console_window)
@@ -230,13 +230,236 @@
     * ![](./assets/manipulating_a_cube/changed_vertex.png)
     * ![](./assets/manipulating_a_cube/changed_mesh.png)
 
+### Text Editor
+* Click `New` to create a new Python script
+    * ![](./assets/text_editor/new.png)
+* Can load existing script with `Open`
+    * If you change the original script, loaded script will not update realtime
+    * Instead Blender will prompt you to quick reload to sync with your original script
+* When you save the `.blend` file, Blender will save a copy of the script at the time
+```python
+import bpy
 
+bpy.ops.mesh.primitive_cube_add()
+```
+* Run script
+    * ![](./assets/text_editor/run.png)
+* Errors and print statements from the Text Editor will be logged to the Console Window
 
- 
+### Making a House
+* Every "action" in Blender is an operator call, and they `poll` to determine what mode they're in
+    * Some only work in Edit Mode and others in Object Mode
+    * Example: `Extrude` only works in Edit Mode and the API call will throw an exception if not in Edit mode
+```python
+import bpy #Import Blender bpy module
+import bmesh #Import Blender bmesh module for selecting verticies
+
+#Expects a cube created around the center (0,0,0) and selected
+
+#Scale body of the house
+bpy.ops.object.mode_set(mode="EDIT") #Change into edit mode
+bpy.ops.transform.resize(value=(1,2,1)) #Scale up in the Y direction only
+bpy.ops.mesh.select_all(action="DESELECT") #Deselect all vertices
+
+#Select the top vertices
+#In this case, the top vertices should have z coordinates greater than 0
+#Use bmesh, another Blender module, to assign the vertex selection to True
+#We select the face, and not the verticies because in the UI,
+# the face is autoselected all of its verticies are selected
+mesh = bmesh.from_edit_mesh(bpy.context.object.data) #Need to load in context for bmesh
+mesh.faces.ensure_lookup_table() #Might be 2.74+ specific
+for face in mesh.faces:
+    vertices = face.verts
+    all_above_zero = True #Only select the face if all its vertices have z > 0
+    for vert in vertices:
+        x,y,z = vert.co
+        if z <= 0:
+            all_above_zero = False
+    if all_above_zero:
+        face.select = True    
+
+#Extrude twice in the Z direction
+bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value":(0,0,0.3)})
+bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value":(0,0,0.3)})
+
+#Scale down roof top, the selected vertices, in the X direction
+bpy.ops.transform.resize(value=(0.3,1,1)) #Scale down only in X
+bpy.ops.mesh.select_all(action="DESELECT") #Deselect all verticies
+
+#Select all the faces associated with the roof
+#Same as select roof top, except set a higher cutoff than 0
+mesh = bmesh.from_edit_mesh(bpy.context.object.data)
+mesh.faces.ensure_lookup_table()
+for face in mesh.faces:
+    vertices = face.verts
+    all_above = True
+    for vert in vertices:
+        x,y,z = vert.co
+        if z <= 1.2:
+            all_above = False
+    if all_above:
+        face.select = True
+
+#Scale up roof
+bpy.ops.transform.resize(value=(1.3,1.2,1)) #Scale up in the X and Y direction
+
+#Move roof down
+bpy.ops.transform.translate(value=(0,0,-0.3)) #Translate in the Z direction
+
+#Deselect and return to object mode
+bpy.ops.mesh.select_all(action="DESELECT")
+bpy.ops.object.mode_set(mode="OBJECT")
+```
+* Run the above script will turn a cube into a house
+    * ![](./assets/making_house_with_code/final_house.png)
+
+### Final Code
+* Refactored so it looks a bit nicer
+```python
+import bpy
+import bmesh
+
+def scale_body():
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.transform.resize(value=(1,2,1))
+    bpy.ops.mesh.select_all(action="DESELECT")
+
+def select_above(value):
+    mesh = bmesh.from_edit_mesh(bpy.context.object.data)
+    mesh.faces.ensure_lookup_table()
+    for face in mesh.faces:
+        vertices = face.verts
+        all_above_value = True
+        for vert in vertices:
+            x,y,z = vert.co
+            if z <= value:
+                all_above_value = False
+        if all_above_value:
+            face.select = True    
+
+def extrude_twice():
+    bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value":(0,0,0.3)})
+    bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value":(0,0,0.3)})
+
+def scale_down_roof_top():
+    bpy.ops.transform.resize(value=(0.3,1,1))
+    bpy.ops.mesh.select_all(action="DESELECT")
+
+def scale_up_roof():
+    bpy.ops.transform.resize(value=(1.3,1.2,1))
+
+def translate_roof():
+    bpy.ops.transform.translate(value=(0,0,-0.3))
+
+def deselect_and_cleanup():
+    bpy.ops.mesh.select_all(action="DESELECT")
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+scale_body()
+select_above(0)
+extrude_twice()
+scale_down_roof_top()
+select_above(1.2)
+scale_up_roof()
+translate_roof()
+deselect_and_cleanup()
+```
 # Add-Ons
+* Add-Ons are additional features that can be loaded and used in Blender
+* Blender comes with a large set in `Files` > `User Preferences` > `Add-Ons`
+    * ![](./assets/add_ons/file_user.png)
+    * ![](./assets/add_ons/add_ons.png)
 * [Example Add-On](http://www.blender.org/api/blender_python_api_2_70_release/info_quickstart.html#example-operator)
+* This follow is the above script turned into an Add-On
+```python
+import bpy
+import bmesh
+
+bl_info = {
+    "name": "Turn Cube into House",
+    "category": "OBJECT",
+}
+
+#Subclass Operator to create your own operator (bpy.ops....)
+#First comment inside the operator will be the tool tip description
+#bl_idname is determines how the operator is invoked
+class TurnCubeIntoHouse(bpy.types.Operator):
+    """Turn a Cube centered around (0,0,0) into a house"""
+    bl_idname = "object.turn_cube_into_house"
+    bl_label = "Turn Cube Into House"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    #execute is what happens this operator is called
+    def execute(self, context):
+        #for simplicity, not going to pass context into the other methods
+        #the other methods should act on the given context, instead of
+        #fetching the context themselves
+        self.scale_body()
+        self.select_above(0)
+        self.extrude_twice()
+        self.scale_down_roof_top()
+        self.select_above(1.2)
+        self.scale_up_roof()
+        self.translate_roof()
+        self.deselect_and_cleanup()
+        
+        #Need to return finished
+        return {"FINISHED"}
+
+    def scale_body(self):
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.transform.resize(value=(1,2,1))
+        bpy.ops.mesh.select_all(action="DESELECT")
+
+    def select_above(self, value):
+        mesh = bmesh.from_edit_mesh(bpy.context.object.data)
+        mesh.faces.ensure_lookup_table()
+        for face in mesh.faces:
+            vertices = face.verts
+            all_above_value = True
+            for vert in vertices:
+                x,y,z = vert.co
+                if z <= value:
+                    all_above_value = False
+            if all_above_value:
+                face.select = True    
+
+    def extrude_twice(self):
+        bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value":(0,0,0.3)})
+        bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value":(0,0,0.3)})
+
+    def scale_down_roof_top(self):
+        bpy.ops.transform.resize(value=(0.3,1,1))
+        bpy.ops.mesh.select_all(action="DESELECT")
+
+    def scale_up_roof(self):
+        bpy.ops.transform.resize(value=(1.3,1.2,1))
+
+    def translate_roof(self):
+        bpy.ops.transform.translate(value=(0,0,-0.3))
+
+    def deselect_and_cleanup(self):
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+def register():
+    bpy.utils.register_class(TurnCubeIntoHouse)
+    
+def unregister():
+    bpy.utils.unregister_class(TurnCubeIntoHouse)
+    
+if __name__ == "__main__":
+    register()
+```
+* Execute the script from the Text Editor
+    * Nothing visually will change
+    * However, press `Spacebar` and type `Turn Cube into House` will find the newly registered Operator
+    * ![](./assets/add_ons/turn_cube_into_house.png)
+    * Clicking on `Turn Cube into House` will turn cube into house
+* If you make changes to the Add-On, you need to `unregister` and then `register` again, in the same session
 
 ## Repos, Mailing Lists, and IRC
+* Feel free to ask questions and contribute!
 * [Blender repos](https://developer.blender.org/)
     * C/C++ in Blender Core
     * Python for Add-Ons
