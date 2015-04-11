@@ -250,6 +250,7 @@ bpy.ops.mesh.primitive_cube_add()
 * Every "action" in Blender is an operator call, and they `poll` to determine what mode they're in
     * Some only work in Edit Mode and others in Object Mode
     * Example: `Extrude` only works in Edit Mode and the API call will throw an exception if not in Edit mode
+* You need to have a new cube created and selected (this code turns a new cube into a house)
 ```python
 import bpy #Import Blender bpy module
 import bmesh #Import Blender bmesh module for selecting verticies
@@ -315,6 +316,7 @@ bpy.ops.object.mode_set(mode="OBJECT")
 
 ### Final Code
 * Refactored so it looks a bit nicer
+* You still need to have a new cube created and selected (this code turns a new cube into a house)
 ```python
 import bpy
 import bmesh
@@ -371,6 +373,7 @@ deselect_and_cleanup()
     * ![](./assets/add_ons/add_ons.png)
 * [Example Add-On](http://www.blender.org/api/blender_python_api_2_70_release/info_quickstart.html#example-operator)
 * This follow is the above script turned into an Add-On
+* Still need to create a new cube and select it before running the Add-On
 ```python
 import bpy
 import bmesh
